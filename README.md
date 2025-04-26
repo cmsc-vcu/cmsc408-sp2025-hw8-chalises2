@@ -1,10 +1,29 @@
-# cmsc408-sp2025-hw8
+Homework 8 README
 
-Homework 8 - World Bank Indicator Analysis
+Overview
 
-(this is a scaffold.  Please clean it up.)
+This project connects to a database and runs SQL queries to explore information from the World Bank.
 
-(Remember, someday you'll look back at this repo and wonder what you were thinking!
-Now is your chance to remind your future self what you were thinking!)
+Steps
 
+Connected to the database using Python and Quarto.
+
+Ran SQL queries to answer questions.
+
+Generated a report in HTML format.
+
+Files
+loader.qmd 
+
+report.qmd 
+
+report.html 
+
+Tools
+
+Python
+
+MySQL
+
+Quarto
 
