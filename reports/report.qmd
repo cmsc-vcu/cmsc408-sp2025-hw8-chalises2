@@ -89,9 +89,7 @@ List all non-countries.
 ## (skills: select, where)
 
 run_sql_and_return_html(cnx,"""
-SELECT
-  `Short Name`, 
-  `Region`
+SELECT country
 FROM world_bank_data.wdi_country
 WHERE `Region` IS NULL OR `Region` = '';
 """)
@@ -340,8 +338,7 @@ SELECT
   SUM(CASE WHEN `Income Group` = 'Upper middle income' THEN 1 ELSE 0 END) AS `Upper middle income`,
   SUM(CASE WHEN `Income Group` = 'Lower middle income' THEN 1 ELSE 0 END) AS `Lower middle income`,
   SUM(CASE WHEN `Income Group` = 'Low income' THEN 1 ELSE 0 END) AS `Low income`,
-  SUM(CASE WHEN `Income Group` IS NULL THEN 1 ELSE 0 END) AS `Other`,
-  COUNT(*) AS `Row Total`
+  COUNT(*) AS `Total`
 FROM wdi_country
 GROUP BY `Region`
 ORDER BY `Region`;
@@ -446,7 +443,7 @@ existing_combinations AS (
   FROM wdi_country
   GROUP BY `Region`, `Income Group`
 )
-SELECT ac.`Region`, COALESCE(ac.`Income Group`, 'Other') AS `Income Group`
+SELECT ac.`Region`, ac.`Income Group`
 FROM all_combinations ac
 LEFT JOIN existing_combinations ec
 ON ac.`Region` = ec.`Region` AND ac.`Income Group` = ec.`Income Group`
@@ -533,31 +530,28 @@ ORDER BY
 ## columns, Region in the rows and Percent of total in each cell of the table.
 
 run_sql_and_return_html(cnx,"""
-WITH base AS (
+WITH region_counts AS (
   SELECT 
     `Region`,
-    `Income Group`,
-    COUNT(*) AS country_count
+    COUNT(*) AS region_total,
+    SUM(CASE WHEN `Income Group` = 'High income' THEN 1 ELSE 0 END) AS high,
+    SUM(CASE WHEN `Income Group` = 'Upper middle income' THEN 1 ELSE 0 END) AS upper_mid,
+    SUM(CASE WHEN `Income Group` = 'Lower middle income' THEN 1 ELSE 0 END) AS lower_mid,
+    SUM(CASE WHEN `Income Group` = 'Low income' THEN 1 ELSE 0 END) AS low,
+    SUM(CASE WHEN `Income Group` IS NULL THEN 1 ELSE 0 END) AS other
   FROM wdi_country
-  GROUP BY `Region`, `Income Group`
-),
-grand_total AS (
-  SELECT SUM(country_count) AS total_countries FROM base
+  GROUP BY `Region`
 )
 SELECT 
-  b.`Region`,
-  ROUND(SUM(CASE WHEN `Income Group` = 'High income' THEN country_count ELSE 0 END) / (SELECT total_countries FROM grand_total) * 100, 2) AS `High income`,
-  ROUND(SUM(CASE WHEN `Income Group` = 'Upper middle income' THEN country_count ELSE 0 END) / (SELECT total_countries FROM grand_total) * 100, 2) AS `Upper middle income`,
-  ROUND(SUM(CASE WHEN `Income Group` = 'Lower middle income' THEN country_count ELSE 0 END) / (SELECT total_countries FROM grand_total) * 100, 2) AS `Lower middle income`,
-  ROUND(SUM(CASE WHEN `Income Group` = 'Low income' THEN country_count ELSE 0 END) / (SELECT total_countries FROM grand_total) * 100, 2) AS `Low income`,
-  ROUND(SUM(CASE WHEN `Income Group` IS NULL THEN country_count ELSE 0 END) / (SELECT total_countries FROM grand_total) * 100, 2) AS `Other`,
-  ROUND(SUM(country_count) / (SELECT total_countries FROM grand_total) * 100, 2) AS `Row Total`
-FROM 
-  base b
-GROUP BY 
-  b.`Region`
-ORDER BY 
-  b.`Region`;
+  `Region`,
+  ROUND(100.0 * high / region_total, 1) AS `High income`,
+  ROUND(100.0 * upper_mid / region_total, 1) AS `Upper middle income`,
+  ROUND(100.0 * lower_mid / region_total, 1) AS `Lower middle income`,
+  ROUND(100.0 * low / region_total, 1) AS `Low income`,
+  ROUND(100.0 * other / region_total, 1) AS `Other`,
+  100.0 AS `Total`
+FROM region_counts
+ORDER BY `Region`;
 """)
 
 ```
@@ -572,30 +566,35 @@ ORDER BY
 ## (This is much simpler than task 20!)
 
 run_sql_and_return_html(cnx,"""
-WITH base AS (
+WITH income_region_counts AS (
   SELECT 
     COALESCE(`Income Group`, 'Other') AS `Income Group`,
+    `Region`,
     COUNT(*) AS country_count
   FROM wdi_country
-  GROUP BY `Income Group`
+  GROUP BY `Income Group`, `Region`
 ),
-grand_total AS (
-  SELECT SUM(country_count) AS total_countries FROM base
+income_totals AS (
+  SELECT 
+    `Income Group`,
+    SUM(country_count) AS total
+  FROM income_region_counts
+  GROUP BY `Income Group`
 )
 SELECT 
-  b.`Income Group`,
-  b.`country_count`,
-  (SELECT total_countries FROM grand_total) AS total_countries,
-  ROUND((b.`country_count` / (SELECT total_countries FROM grand_total)) * 100, 2) AS percent_of_total
-FROM base b
-ORDER BY 
-  CASE 
-    WHEN b.`Income Group` = 'High income' THEN 1
-    WHEN b.`Income Group` = 'Upper middle income' THEN 2
-    WHEN b.`Income Group` = 'Lower middle income' THEN 3
-    WHEN b.`Income Group` = 'Low income' THEN 4
-    ELSE 5
-  END;
+  ir.`Income Group`,
+  ROUND(100.0 * SUM(CASE WHEN ir.`Region` = 'East Asia & Pacific' THEN ir.country_count ELSE 0 END) / it.total, 1) AS `East Asia & Pacific`,
+  ROUND(100.0 * SUM(CASE WHEN ir.`Region` = 'Europe & Central Asia' THEN ir.country_count ELSE 0 END) / it.total, 1) AS `Europe & Central Asia`,
+  ROUND(100.0 * SUM(CASE WHEN ir.`Region` = 'Latin America & Caribbean' THEN ir.country_count ELSE 0 END) / it.total, 1) AS `Latin America & Caribbean`,
+  ROUND(100.0 * SUM(CASE WHEN ir.`Region` = 'Middle East & North Africa' THEN ir.country_count ELSE 0 END) / it.total, 1) AS `Middle East & North Africa`,
+  ROUND(100.0 * SUM(CASE WHEN ir.`Region` = 'North America' THEN ir.country_count ELSE 0 END) / it.total, 1) AS `North America`,
+  ROUND(100.0 * SUM(CASE WHEN ir.`Region` = 'South Asia' THEN ir.country_count ELSE 0 END) / it.total, 1) AS `South Asia`,
+  ROUND(100.0 * SUM(CASE WHEN ir.`Region` = 'Sub-Saharan Africa' THEN ir.country_count ELSE 0 END) / it.total, 1) AS `Sub-Saharan Africa`,
+  100.0 AS `Total`
+FROM income_region_counts ir
+JOIN income_totals it ON ir.`Income Group` = it.`Income Group`
+GROUP BY ir.`Income Group`, it.total
+ORDER BY ir.`Income Group`;
 """)
 
 ```
