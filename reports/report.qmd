@@ -282,6 +282,7 @@ execute_ddl(cnx,"""
 UPDATE wdi_country
 SET `Income Group` = 'High income'
 WHERE `Short Name` = 'Venezuela';
+COMMIT;
 """)
 
 
@@ -290,10 +291,7 @@ WHERE `Short Name` = 'Venezuela';
 ## Now, display the country again to verify the change stuck!
 
 run_sql_and_return_html(cnx,"""
-SELECT 
-  `Short Name`,
-  `Country Code`,
-  `Income Group`
+SELECT `Short Name`, `Income Group`
 FROM wdi_country
 WHERE `Short Name` = 'Venezuela';
 """)
@@ -311,7 +309,7 @@ WHERE `Short Name` = 'Venezuela';
 run_sql_and_return_html(cnx,"""
 SELECT 
   `Region`,
-  `Income Group`,
+  COALESCE(`Income Group`, 'Other') AS `Income Group`,
   COUNT(*) AS `Number of Countries`
 FROM wdi_country
 GROUP BY `Region`, `Income Group`
@@ -343,10 +341,7 @@ SELECT
   SUM(CASE WHEN `Income Group` = 'Lower middle income' THEN 1 ELSE 0 END) AS `Lower middle income`,
   SUM(CASE WHEN `Income Group` = 'Low income' THEN 1 ELSE 0 END) AS `Low income`,
   SUM(CASE WHEN `Income Group` IS NULL THEN 1 ELSE 0 END) AS `Other`,
-  (SUM(CASE WHEN `Income Group` = 'High income' THEN 1 ELSE 0 END)
-   + SUM(CASE WHEN `Income Group` = 'Upper middle income' THEN 1 ELSE 0 END)
-   + SUM(CASE WHEN `Income Group` = 'Lower middle income' THEN 1 ELSE 0 END)
-   + SUM(CASE WHEN `Income Group` = 'Low income' THEN 1 ELSE 0 END)) AS `Row Total`
+  (SUM(CASE WHEN `Income Group` IS NOT NULL THEN 1 ELSE 0 END)) AS `Row Total`
 FROM wdi_country
 GROUP BY `Region`
 ORDER BY `Region`;
@@ -435,38 +430,27 @@ ORDER BY `Short Name`;
 ## (skills: select, where, subqueries, joins)
 
 run_sql_and_return_html(cnx,"""
-WITH region_income_pairs AS (
-    SELECT DISTINCT 
-        r.`Region`, 
-        i.`Income Group`
-    FROM 
-        (SELECT DISTINCT `Region` FROM wdi_country) r
-    CROSS JOIN 
-        (SELECT DISTINCT `Income Group` FROM wdi_country) i
+WITH regions AS (
+    SELECT DISTINCT `Region` FROM wdi_country
 ),
-existing_region_income AS (
-    SELECT 
-        `Region`,
-        `Income Group`
-    FROM 
-        wdi_country
-    GROUP BY 
-        `Region`, `Income Group`
+incomes AS (
+    SELECT DISTINCT `Income Group` FROM wdi_country
+),
+all_combinations AS (
+    SELECT r.`Region`, i.`Income Group`
+    FROM regions r
+    CROSS JOIN incomes i
 )
-SELECT 
-    p.`Region`, 
-    p.`Income Group`,
-    'Missing' AS `Status`
-FROM 
-    region_income_pairs p
-LEFT JOIN 
-    existing_region_income e
-ON 
-    p.`Region` = e.`Region` AND p.`Income Group` = e.`Income Group`
-WHERE 
-    e.`Region` IS NULL
-ORDER BY 
-    p.`Region`, p.`Income Group`;
+SELECT ac.`Region`, ac.`Income Group`
+FROM all_combinations ac
+LEFT JOIN (
+    SELECT `Region`, `Income Group`
+    FROM wdi_country
+    GROUP BY `Region`, `Income Group`
+) existing
+ON ac.`Region` = existing.`Region` AND ac.`Income Group` = existing.`Income Group`
+WHERE existing.`Region` IS NULL
+ORDER BY ac.`Region`, ac.`Income Group`;
 """)
 
 ```
@@ -585,7 +569,7 @@ ORDER BY
 
 run_sql_and_return_html(cnx,"""
 WITH base AS (
-  SELECT `Income Group`, COUNT(*) AS country_count
+  SELECT COALESCE(`Income Group`, 'Other') AS `Income Group`, COUNT(*) AS country_count
   FROM wdi_country
   GROUP BY `Income Group`
 ),
@@ -598,7 +582,7 @@ SELECT
   (SELECT total_countries FROM grand_total) AS total_countries,
   ROUND((b.`country_count` / (SELECT total_countries FROM grand_total)) * 100, 2) AS percent_of_total
 FROM base b
-ORDER BY FIELD(`Income Group`, 'High income', 'Upper middle income', 'Lower middle income', 'Low income');
+ORDER BY FIELD(`Income Group`, 'High income', 'Upper middle income', 'Lower middle income', 'Low income', 'Other');
 """)
 
 ```
