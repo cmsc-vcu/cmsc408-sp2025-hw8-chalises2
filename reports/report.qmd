@@ -89,7 +89,7 @@ List all non-countries.
 ## (skills: select, where)
 
 run_sql_and_return_html(cnx,"""
-SELECT 
+SELECT
   `Short Name`, 
   `Country Code`
 FROM world_bank_data.wdi_country
