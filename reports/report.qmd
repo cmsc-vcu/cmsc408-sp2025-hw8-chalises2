@@ -428,20 +428,23 @@ ORDER BY `Short Name`;
 ## (skills: select, where, subqueries, joins)
 
 run_sql_and_return_html(cnx,"""
-SELECT 
-  r.Region, 
-  i.`Income Group`
-FROM 
-  (SELECT DISTINCT Region FROM wdi_country WHERE Region IS NOT NULL) r
-CROSS JOIN
-  (SELECT DISTINCT `Income Group` FROM wdi_country WHERE `Income Group` IS NOT NULL) i
-LEFT JOIN 
-  (SELECT DISTINCT Region, `Income Group` FROM wdi_country WHERE Region IS NOT NULL AND `Income Group` IS NOT NULL) w
-ON r.Region = w.Region AND i.`Income Group` = w.`Income Group`
-WHERE 
-  w.Region IS NULL
-ORDER BY 
-  r.Region, i.`Income Group`;
+WITH combos AS (
+  SELECT DISTINCT a.Region, b.`Income Group`
+  FROM wdi_country a
+  CROSS JOIN wdi_country b
+  WHERE a.Region IS NOT NULL AND b.`Income Group` IS NOT NULL
+),
+valid_pairs AS (
+  SELECT DISTINCT Region, `Income Group`
+  FROM wdi_country
+  WHERE Region IS NOT NULL AND `Income Group` IS NOT NULL
+)
+SELECT c.Region, c.`Income Group`, 0 AS `Count`
+FROM combos c
+LEFT JOIN valid_pairs v
+  ON c.Region = v.Region AND c.`Income Group` = v.`Income Group`
+WHERE v.Region IS NULL
+ORDER BY c.Region, c.`Income Group`;
 """)
 
 ```
