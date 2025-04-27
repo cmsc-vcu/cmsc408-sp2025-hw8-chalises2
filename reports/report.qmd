@@ -432,11 +432,12 @@ SELECT
   r.Region, 
   i.`Income Group`
 FROM 
-  (SELECT DISTINCT Region FROM wdi_country) r
+  (SELECT DISTINCT Region FROM wdi_country WHERE Region IS NOT NULL) r
 CROSS JOIN
-  (SELECT DISTINCT `Income Group` FROM wdi_country) i
+  (SELECT DISTINCT `Income Group` FROM wdi_country WHERE `Income Group` IS NOT NULL) i
 LEFT JOIN 
-  wdi_country w ON r.Region = w.Region AND i.`Income Group` = w.`Income Group`
+  (SELECT DISTINCT Region, `Income Group` FROM wdi_country WHERE Region IS NOT NULL AND `Income Group` IS NOT NULL) w
+ON r.Region = w.Region AND i.`Income Group` = w.`Income Group`
 WHERE 
   w.Region IS NULL
 ORDER BY 
