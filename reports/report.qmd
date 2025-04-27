@@ -428,16 +428,19 @@ ORDER BY `Short Name`;
 ## (skills: select, where, subqueries, joins)
 
 run_sql_and_return_html(cnx,"""
-SELECT r.Region, i.`Income Group`
+SELECT 
+  r.Region, 
+  i.`Income Group`
 FROM 
-  (SELECT DISTINCT Region FROM wdi_country WHERE Region IS NOT NULL) r
+  (SELECT DISTINCT Region FROM wdi_country) r
 CROSS JOIN
-  (SELECT DISTINCT `Income Group` FROM wdi_country WHERE `Income Group` IS NOT NULL) i
-WHERE NOT EXISTS (
-  SELECT 1 FROM wdi_country w
-  WHERE w.Region = r.Region AND w.`Income Group` = i.`Income Group`
-)
-ORDER BY r.Region, i.`Income Group`;
+  (SELECT DISTINCT `Income Group` FROM wdi_country) i
+LEFT JOIN 
+  wdi_country w ON r.Region = w.Region AND i.`Income Group` = w.`Income Group`
+WHERE 
+  w.Region IS NULL
+ORDER BY 
+  r.Region, i.`Income Group`;
 """)
 
 ```
